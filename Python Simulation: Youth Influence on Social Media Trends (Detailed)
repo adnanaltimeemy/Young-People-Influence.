@@ -1,0 +1,91 @@
+import random
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# --- Parameters ---
+NUM_USERS = 100
+EDGE_PROBABILITY = 0.05
+TREND_SEED_COUNT = 5
+STEPS = 10
+
+# Influence probability by age group
+INFLUENCE_PROB = {
+    'young': 0.6,   # Young users are more likely to spread the trend
+    'older': 0.3    # Older users are less influential
+}
+
+ADOPTION_THRESHOLD = 0.3  # Proportion of neighbors needed to influence adoption
+
+# --- Create social network ---
+G = nx.erdos_renyi_graph(n=NUM_USERS, p=EDGE_PROBABILITY)
+
+# Assign age and initial trend adoption
+for node in G.nodes():
+    G.nodes[node]['age'] = random.choices(['young', 'older'], weights=[0.6, 0.4])[0]
+    G.nodes[node]['trend'] = False
+
+# Select initial trendsetters (young users)
+young_users = [n for n in G.nodes if G.nodes[n]['age'] == 'young']
+initial_trendsetters = random.sample(young_users, TREND_SEED_COUNT)
+for node in initial_trendsetters:
+    G.nodes[node]['trend'] = True
+
+# --- Track trend adoption over time ---
+adoption_data = [sum(1 for n in G.nodes if G.nodes[n]['trend'])]
+
+# --- Spread Simulation ---
+def simulate_trend_spread(graph, steps):
+    for step in range(steps):
+        new_adopters = []
+
+        for node in graph.nodes:
+            if not graph.nodes[node]['trend']:
+                neighbors = list(graph.neighbors(node))
+                if not neighbors:
+                    continue
+
+                influencer_neighbors = [
+                    n for n in neighbors if graph.nodes[n]['trend']
+                ]
+                influence_score = sum(
+                    INFLUENCE_PROB[graph.nodes[n]['age']]
+                    for n in influencer_neighbors
+                )
+
+                # Normalize score and check threshold
+                if (len(influencer_neighbors) / len(neighbors)) >= ADOPTION_THRESHOLD:
+                    if random.random() < influence_score / len(neighbors):
+                        new_adopters.append(node)
+
+        # Update graph
+        for node in new_adopters:
+            graph.nodes[node]['trend'] = True
+
+        # Log current adoption
+        adoption_data.append(sum(1 for n in graph.nodes if G.nodes[n]['trend']))
+
+simulate_trend_spread(G, STEPS)
+
+# --- Plotting results ---
+plt.figure(figsize=(10, 5))
+plt.plot(range(STEPS + 1), adoption_data, marker='o')
+plt.title("Trend Adoption Over Time Influenced by Young Users")
+plt.xlabel("Step")
+plt.ylabel("Number of Trend Adopters")
+plt.grid(True)
+plt.show()
+
+# --- Final network visualization ---
+color_map = []
+for node in G.nodes:
+    if G.nodes[node]['trend']:
+        color_map.append('green')
+    elif G.nodes[node]['age'] == 'young':
+        color_map.append('blue')
+    else:
+        color_map.append('gray')
+
+plt.figure(figsize=(10, 8))
+nx.draw(G, with_labels=False, node_color=color_map, node_size=100)
+plt.title("Final State of Network: Green = Trend Adopter")
+plt.show()
